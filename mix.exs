@@ -5,7 +5,8 @@ defmodule EctoGraph.MixProject do
   def project do
     [
       name: "EctoGraph",
-      description: "Provides an easy interface to get paths between schemas and a way to walk the paths",
+      description:
+        "Provides an easy interface to get paths between schemas and a way to walk the paths",
       app: :ecto_graph,
       version: "0.1.0",
       elixir: "~> 1.18",

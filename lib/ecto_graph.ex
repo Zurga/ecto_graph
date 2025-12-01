@@ -33,6 +33,22 @@ defmodule EctoGraph do
     Map.get(graph.paths, {from, to}, [])
   end
 
+  def get(value, path) do
+    do_get(value, path)
+    |> List.flatten()
+  end
+
+  defp do_get(nil, _), do: nil
+  defp do_get(%NotLoaded{} = not_loaded, _), do: not_loaded
+  defp do_get(values, {key, []}) when is_list(values), do: Enum.map(values, &Map.get(&1, key))
+  defp do_get(value, {key, []}), do: Map.get(value, key)
+
+  defp do_get(values, {key, nested}) when is_list(values),
+    do: Enum.map(values, &do_get(Map.get(&1, key), nested))
+
+  defp do_get(value, {key, nested}), do: do_get(Map.get(value, key), nested)
+  defp do_get(value, keys) when is_list(keys), do: Enum.map(keys, &do_get(value, &1))
+
   def prewalk(paths, value, fun) when is_list(paths) do
     Enum.reduce(paths, value, &do_prewalk(&2, &1, fun))
   end
@@ -47,8 +63,10 @@ defmodule EctoGraph do
 
   defp do_prewalk(%{__struct__: schema_mod} = value, {key, []}, fun) do
     Map.update!(value, key, fn
-      %NotLoaded{} = not_loaded -> not_loaded
-      associated -> 
+      %NotLoaded{} = not_loaded ->
+        not_loaded
+
+      associated ->
         assoc_info = schema_mod.__schema__(:association, key)
         fun.(value, associated, assoc_info)
     end)
@@ -95,36 +113,38 @@ defmodule EctoGraph do
     modules
     |> Enum.reduce(
       {[], %{}},
-      &reduce_assocs(&1, &2, fn {field, %{owner: from} = assoc}, {edge_acc, field_acc} ->
-        {edges, related} =
-          case assoc do
-            %ManyToMany{
-              join_through: join_through,
-              related: related
-            } ->
-              edges =
-                if is_binary(join_through) do
-                  [{from, join_through}, {join_through, from}]
-                else
-                  [{from, join_through}]
-                end
+      fn module, acc ->
+        reduce_assocs(module, acc, fn {field, %{owner: from} = assoc}, {edge_acc, field_acc} ->
+          {edges, related} =
+            case assoc do
+              %ManyToMany{
+                join_through: join_through,
+                related: related
+              } ->
+                edges =
+                  if is_binary(join_through) do
+                    [{from, join_through}, {join_through, from}]
+                  else
+                    [{from, join_through}]
+                  end
 
-              {edges, related}
+                {edges, related}
 
-            %HasThrough{through: through} ->
-              to = resolve_through(&1, through)
+              %HasThrough{through: through} ->
+                to = resolve_through(module, through)
 
-              {[{from, to}], to}
+                {[{from, to}], to}
 
-            %{related: to} ->
-              {[{from, to}], to}
-          end
+              %{related: to} ->
+                {[{from, to}], to}
+            end
 
-        field_acc =
-          Map.update(field_acc, {from, related}, [field], fn fields -> [field | fields] end)
+          field_acc =
+            Map.update(field_acc, {from, related}, [field], fn fields -> [field | fields] end)
 
-        {edges ++ edge_acc, field_acc}
-      end)
+          {edges ++ edge_acc, field_acc}
+        end)
+      end
     )
   end
 
@@ -178,7 +198,7 @@ defmodule EctoGraph do
     UndefinedFunctionError -> false
   end
 
-  defp reduce_assocs(schema_mod, acc \\ nil, function)
+  defp reduce_assocs(schema_mod, acc, function)
 
   defp reduce_assocs(%NotLoaded{} = value, _acc, _function), do: value
 
