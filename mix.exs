@@ -8,7 +8,7 @@ defmodule EctoGraph.MixProject do
       description:
         "Provides an easy interface to get paths between schemas and a way to walk the paths",
       app: :ecto_graph,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.18",
       homepage_url: @source,
       start_permanent: Mix.env() == :prod,
